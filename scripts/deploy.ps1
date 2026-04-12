@@ -57,7 +57,7 @@ if (-Not (Test-Path ".\out\index.html")) {
 
 Write-Host "Uploading to S3..." -ForegroundColor Green
 
-aws s3 sync .\out "s3://$FrontendBucket/" --delete
+aws s3 sync .\frontend\out "s3://$FrontendBucket/" --delete
 Set-Location ..
 
 # 4. Final summary
