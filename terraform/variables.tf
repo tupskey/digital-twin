@@ -24,7 +24,7 @@ variable "bedrock_model_id" {
 variable "openrouter_api_key" {
   description = "Open Router Key"
   type        = string
-  default     = "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"
+  default     = ""
 }
 variable "openai_model_id" {
   description = "Open AI model"

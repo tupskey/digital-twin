@@ -28,7 +28,7 @@ app.add_middleware(
 )
 
 # Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENROUTER_API_KEY"), base_url="https://openrouter.ai/api/v1")
+client = OpenAI(api_key="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", base_url="https://openrouter.ai/api/v1")
 
 # Memory storage configuration
 USE_S3 = os.getenv("USE_S3", "false").lower() == "true"
