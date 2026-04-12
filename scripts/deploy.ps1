@@ -43,12 +43,20 @@ try { $CustomUrl = terraform output -raw custom_domain_url } catch { $CustomUrl 
 # 3. Build + deploy frontend
 Set-Location ..\frontend
 
-# Create production environment file with API URL
-Write-Host "Setting API URL for production..." -ForegroundColor Yellow
-"NEXT_PUBLIC_API_URL=$ApiUrl" | Out-File .env.production -Encoding utf8
-
 npm install
 npm run build
+
+Write-Host "Checking export output..." -ForegroundColor Yellow
+
+if (-Not (Test-Path ".\out\index.html")) {
+    Write-Host "❌ ERROR: out/index.html not found" -ForegroundColor Red
+    Write-Host "Contents of frontend:" -ForegroundColor Yellow
+    Get-ChildItem -Recurse
+    exit 1
+}
+
+Write-Host "Uploading to S3..." -ForegroundColor Green
+
 aws s3 sync .\out "s3://$FrontendBucket/" --delete
 Set-Location ..
 
