@@ -64,10 +64,13 @@ jobs:
           export AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }}
           export DEFAULT_AWS_REGION=${{ secrets.DEFAULT_AWS_REGION }}
           export OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
+      
+      - name: Run deploy script
+        run: pwsh ./scripts/deploy.ps1 ${{ github.event.inputs.environment || 'dev' }}
           
           # Make script executable and run it
-          # chmod +x scripts/deploy.ps1
-          ./scripts/deploy.ps1 ${{ github.event.inputs.environment || 'dev' }}
+          #  chmod +x scripts/deploy.ps1
+          # ./scripts/deploy.ps1 ${{ github.event.inputs.environment || 'dev' }}
         env:
           AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
