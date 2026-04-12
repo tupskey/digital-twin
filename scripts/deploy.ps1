@@ -41,11 +41,12 @@ $FrontendBucket = terraform output -raw s3_frontend_bucket
 try { $CustomUrl = terraform output -raw custom_domain_url } catch { $CustomUrl = "" }
 
 # 3. Build + deploy frontend
-Set-Location ..\frontend
+Set-Location "$PSScriptRoot/../frontend"
 
-cd frontend
 npm install
 npm run build
+
+aws s3 sync out "s3://$env:FrontendBucket/" --delete
 
 Write-Host "Checking export output..." -ForegroundColor Yellow
 
