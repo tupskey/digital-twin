@@ -41,25 +41,23 @@ $FrontendBucket = terraform output -raw s3_frontend_bucket
 try { $CustomUrl = terraform output -raw custom_domain_url } catch { $CustomUrl = "" }
 
 # 3. Build + deploy frontend
-Set-Location "$PSScriptRoot/../frontend"
-
+# 3. Build + deploy frontend
+Set-Location ..\frontend
 npm install
 npm run build
 
-aws s3 sync out "s3://$env:FrontendBucket/" --delete
-
 Write-Host "Checking export output..." -ForegroundColor Yellow
 
-if (-Not (Test-Path ".\out\index.html")) {
+if (-Not (Test-Path "out/index.html")) {
     Write-Host "❌ ERROR: out/index.html not found" -ForegroundColor Red
-    Write-Host "Contents of frontend:" -ForegroundColor Yellow
     Get-ChildItem -Recurse
     exit 1
 }
 
 Write-Host "Uploading to S3..." -ForegroundColor Green
 
-aws s3 sync .\frontend\out "s3://$FrontendBucket/" --delete
+aws s3 sync .\out "s3://$FrontendBucket/" --delete
+
 Set-Location ..
 
 # 4. Final summary
