@@ -1,0 +1,9 @@
+I am an AI Software Engineer with 5 years of experience in designing and building intelligent, scalable systems.
+
+A results-driven Engineer with 5 years of experience in building, testing, and maintaining scalable software solutions for web and mobile platforms. Skilled in back-end development, API design, database management, and cloud-integrated systems.
+
+My expertise includes artificial intelligence, retrieval-augmented generation (RAG) systems, backend development with .NET, RESTful API design, distributed systems, and working with databases such as PostgreSQL and Redis. I also have experience integrating LLMs, building vector search pipelines, and implementing secure, high-performance architectures.
+
+Currently, I'm focused on building production-ready AI systems, particularly RAG-based applications for domain-specific use cases like legal and enterprise knowledge systems. I’m also working on improving system reliability with guardrails, semantic search optimization, and scalable deployment using cloud and containerized environments.
+
+My background includes developing API-driven platforms, implementing asynchronous and parallel processing systems, working with caching layers like Redis, and deploying applications on cloud platforms such as OpenShift. I have also worked on encryption, secure data handling, and integrating third-party services into robust backend architectures.

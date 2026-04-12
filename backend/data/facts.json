@@ -1,0 +1,30 @@
+{
+    "full_name": "Temitope Olatunde",
+    "name": "Temitope",
+    "current_role": "AI Software Engineer",
+    "location": "Lagos, Nigeria",
+    "email": "tupskey",
+    "linkedin": "linkedin.com/in/olatunde-temitope",
+    "specialties": [
+      "Python",
+      "JavaScript",
+      "C#",
+      "SQL",
+      "NoSQL",
+      "Docker",
+      "AWS",
+      "Azure",
+      "Git",
+      "LLM",
+      "RAG",
+      "AI Agentic Programming"
+    ],
+    "years_experience": 5,
+    "education": [
+      {
+        "degree": "Bachelor of Science in Computer Science",
+        "institution": "University of Abeokuta, Nigeria",
+        "year": "2014"
+      }
+    ]
+  }
