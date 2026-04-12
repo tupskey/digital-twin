@@ -43,6 +43,7 @@ try { $CustomUrl = terraform output -raw custom_domain_url } catch { $CustomUrl 
 # 3. Build + deploy frontend
 Set-Location ..\frontend
 
+cd frontend
 npm install
 npm run build
 
@@ -57,7 +58,7 @@ if (-Not (Test-Path ".\out\index.html")) {
 
 Write-Host "Uploading to S3..." -ForegroundColor Green
 
-aws s3 sync "$GITHUB_WORKSPACE/frontend/out" "s3://$FrontendBucket/" --delete
+aws s3 sync .\frontend\out "s3://$FrontendBucket/" --delete
 Set-Location ..
 
 # 4. Final summary
