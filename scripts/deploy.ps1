@@ -4,6 +4,11 @@ param(
 )
 $ErrorActionPreference = "Stop"
 
+# Terraform variable openrouter_api_key: prefer explicit TF_VAR_, else GitHub/local OPENROUTER_API_KEY
+if (-not $env:TF_VAR_openrouter_api_key -and $env:OPENROUTER_API_KEY) {
+    $env:TF_VAR_openrouter_api_key = $env:OPENROUTER_API_KEY
+}
+
 Write-Host "Deploying $ProjectName to $Environment ..." -ForegroundColor Green
 
 # 1. Build Lambda package

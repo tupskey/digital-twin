@@ -1,7 +1,8 @@
 project_name             = "twin"
 environment              = "dev"
 bedrock_model_id         = "amazon.nova-micro-v1:0"
-openrouter_api_key       = "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"
+# Set a real key locally, or export TF_VAR_openrouter_api_key / OPENROUTER_API_KEY before deploy.ps1
+openrouter_api_key       = ""
 lambda_timeout           = 60
 api_throttle_burst_limit = 10
 api_throttle_rate_limit  = 5

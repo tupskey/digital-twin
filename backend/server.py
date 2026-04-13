@@ -27,8 +27,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize OpenAI client
-client = OpenAI(api_key="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", base_url="https://openrouter.ai/api/v1")
+# OpenRouter uses the OpenAI-compatible API; key must come from env (Lambda / .env), never committed.
+_client: Optional[OpenAI] = None
+
+
+def get_openrouter_client() -> OpenAI:
+    global _client
+    if _client is not None:
+        return _client
+    key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
+    if not key:
+        raise HTTPException(
+            status_code=503,
+            detail="OPENROUTER_API_KEY is not configured.",
+        )
+    base = (os.getenv("OPENROUTER_BASE_URL") or "https://openrouter.ai/api/v1").strip()
+    _client = OpenAI(api_key=key, base_url=base)
+    return _client
 
 # Memory storage configuration
 USE_S3 = os.getenv("USE_S3", "false").lower() == "true"
@@ -131,8 +146,8 @@ async def chat(request: ChatRequest):
         # Add current user message
         messages.append({"role": "user", "content": request.message})
 
-        # Call OpenAI API
-        response = client.chat.completions.create(
+        # Call OpenRouter (OpenAI-compatible)
+        response = get_openrouter_client().chat.completions.create(
             model="gpt-4o-mini", 
             messages=messages
         )
