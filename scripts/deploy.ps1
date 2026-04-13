@@ -25,6 +25,44 @@ function Get-TerraformExe {
     return $null
 }
 
+function Get-UvExe {
+    $cmd = Get-Command uv -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Path }
+    $homeRoot = if (-not [string]::IsNullOrWhiteSpace($env:HOME)) { $env:HOME } else { $env:USERPROFILE }
+    $candidates = @()
+    if (-not [string]::IsNullOrWhiteSpace($homeRoot)) {
+        $candidates += @(
+            (Join-Path $homeRoot ".local/bin/uv"),
+            (Join-Path $homeRoot ".local\bin\uv.exe"),
+            (Join-Path $homeRoot ".cargo/bin/uv"),
+            (Join-Path $homeRoot ".cargo\bin\uv.exe")
+        )
+    }
+    foreach ($p in $candidates) {
+        if ($p -and (Test-Path -LiteralPath $p)) { return $p }
+    }
+    return $null
+}
+
+function Invoke-BackendDeployPackage {
+    $uv = Get-UvExe
+    if ($uv) {
+        & $uv run deploy.py
+        if ($LASTEXITCODE -ne 0) { throw "uv run deploy.py failed (exit $LASTEXITCODE)." }
+        return
+    }
+    $py = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $py) { $py = Get-Command python3 -ErrorAction SilentlyContinue }
+    if ($py) {
+        Write-Host "uv not found; running deploy.py with $($py.Name)." -ForegroundColor Yellow
+        & $py.Path deploy.py
+        if ($LASTEXITCODE -ne 0) { throw "python deploy.py failed (exit $LASTEXITCODE)." }
+        return
+    }
+    Write-Error "Neither 'uv' nor 'python' was found. Install uv (https://docs.astral.sh/uv/getting-started/installation/) or Python 3.12+."
+    exit 1
+}
+
 Write-Host "Deploying $ProjectName to $Environment ..." -ForegroundColor Green
 
 # 1. Build Lambda package
@@ -71,7 +109,7 @@ if ($env:GITHUB_ACTIONS -eq "true") {
 
 Write-Host "Building Lambda package..." -ForegroundColor Yellow
 Set-Location backend
-uv run deploy.py
+Invoke-BackendDeployPackage
 Set-Location ..
 
 # 2. Terraform workspace & apply
