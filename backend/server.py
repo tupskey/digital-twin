@@ -6,6 +6,7 @@ import os
 from dotenv import load_dotenv
 from typing import Optional, List, Dict
 import json
+import traceback
 import uuid
 from datetime import datetime
 import boto3
@@ -18,8 +19,16 @@ if not os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
 
 app = FastAPI()
 
-# Configure CORS
-origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+# Configure CORS: in Lambda, allow any Origin (CloudFront, S3 static website, localhost API tests).
+# API Gateway HTTP API also emits CORS headers; this keeps FastAPI responses consistent for browsers.
+if os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+    origins = ["*"]
+else:
+    origins = [
+        o.strip()
+        for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+        if o.strip()
+    ]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -42,7 +51,16 @@ def _openrouter_client() -> OpenAI:
     if not key:
         raise ValueError("OPENROUTER_API_KEY is not set")
     base = (os.getenv("OPENROUTER_BASE_URL") or "https://openrouter.ai/api/v1").strip()
-    return OpenAI( api_key=key, base_url=base)
+    referer = (os.getenv("OPENROUTER_HTTP_REFERER") or "").strip() or "https://github.com"
+    title = (os.getenv("OPENROUTER_APP_TITLE") or "").strip() or "digital-twin-api"
+    return OpenAI(
+        api_key=key,
+        base_url=base,
+        default_headers={
+            "HTTP-Referer": referer,
+            "X-Title": title,
+        },
+    )
 
 # Memory storage configuration
 USE_S3 = os.getenv("USE_S3", "false").lower() == "true"
@@ -151,7 +169,12 @@ async def chat(request: ChatRequest):
             messages=messages,
         )
 
-        assistant_response = response.choices[0].message.content
+        if not response.choices:
+            raise ValueError("OpenRouter returned no completion choices")
+        msg = response.choices[0].message
+        assistant_response = (msg.content or "").strip()
+        if not assistant_response:
+            raise ValueError("OpenRouter returned an empty assistant message")
 
         # Update conversation history
         conversation.append(
@@ -171,7 +194,7 @@ async def chat(request: ChatRequest):
         return ChatResponse(response=assistant_response, session_id=session_id)
 
     except Exception as e:
-        print(f"Error in chat endpoint: {str(e)}")
+        print(f"Error in chat endpoint: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -185,7 +208,7 @@ async def get_conversation(session_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-if _name_ == "_main_":
+if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(app, host="0.0.0.0", port=8000)
