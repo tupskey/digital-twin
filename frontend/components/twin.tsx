@@ -126,8 +126,8 @@ export default function Twin() {
                         ) : (
                             <Bot className="w-12 h-12 mx-auto mb-3 text-gray-400" />
                         )}
-                        <p>Hello! </p>
-                        <p className="text-sm mt-2">Ask me anything about Temitope Olatunde!</p>
+                        <p>Hello! I'm Temitope Olatunde's Digital Twin.</p>
+                        <p className="text-sm mt-2">Ask me anything about him</p>
                     </div>
                 )}
 
