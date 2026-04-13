@@ -66,9 +66,9 @@ jobs:
           export TF_VAR_openrouter_api_key=${{ secrets.OPENROUTER_API_KEY }}
           
           # Make script executable and run it
-          chmod +x scripts/deploy.sh
+          chmod +x scripts/deploy.ps1
           pwsh ./scripts/deploy.ps1 -Environment ${{ github.event.inputs.environment || 'dev' }}
-          # ./scripts/deploy.sh ${{ github.event.inputs.environment || 'dev' }}
+          # ./scripts/deploy.ps1 -Environment ${{ github.event.inputs.environment || 'dev' }}
         env:
           AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
           
