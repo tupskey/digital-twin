@@ -52,10 +52,9 @@ def get_openrouter_client() -> OpenAI:
         raise HTTPException(
             status_code=503,
             detail=(
-                "OPENROUTER_API_KEY is not set. For local runs, add it to backend/.env or the repo "
-                "root .env (or export it). For AWS Lambda, set GitHub Actions secret OPENROUTER_API_KEY "
-                "(and TF_VAR_openrouter_api_key is set from it in deploy) or terraform variable "
-                "openrouter_api_key, then redeploy."
+                "OPENROUTER_API_KEY is not set. Local: put it in backend/.env or the repo root .env. "
+                "AWS: add Actions secret OPENROUTER_API_KEY (same name for repo or for the deploy "
+                "environment dev/test/prod), then run the Deploy workflow so Terraform updates Lambda."
             ),
         )
     base = _strip_secret(os.getenv("OPENROUTER_BASE_URL")) or "https://openrouter.ai/api/v1"
