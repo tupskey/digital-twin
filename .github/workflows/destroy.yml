@@ -24,10 +24,7 @@ jobs:
     name: Destroy ${{ github.event.inputs.environment }}
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment }}
-    concurrency:
-      group: twin-terraform-${{ github.event.inputs.environment }}
-      cancel-in-progress: false
-
+    
     steps:
       - name: Verify confirmation
         run: |
@@ -54,17 +51,24 @@ jobs:
         with:
           terraform_wrapper: false  # Important: disable wrapper to get raw outputs
 
+      - name: Verify OPENROUTER_API_KEY (repository secret)
+        run: |
+          if [ -z "${OPENROUTER_API_KEY}" ]; then
+            echo "::error::OPENROUTER_API_KEY is missing or empty. Add repository secret OPENROUTER_API_KEY under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          echo "OPENROUTER_API_KEY is loaded from GitHub Actions secrets into this step (value is not printed)."
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+
       - name: Run Destroy Script
         run: |
-          # Set environment variables for the script
-          export AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }}
-          export DEFAULT_AWS_REGION=${{ secrets.DEFAULT_AWS_REGION }}
-          
-          # Make script executable and run it
-          chmod +x scripts/destroy.ps1
-          pwsh ./scripts/destroy.ps1 -Environment ${{ github.event.inputs.environment }}
+          pwsh -File ./scripts/destroy.ps1 -Environment "${{ github.event.inputs.environment }}"
         env:
           AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          DEFAULT_AWS_REGION: ${{ secrets.DEFAULT_AWS_REGION }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 
       - name: Destruction Complete
         run: |
