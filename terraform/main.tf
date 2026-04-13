@@ -87,7 +87,7 @@ resource "aws_s3_bucket_policy" "frontend" {
 
 # IAM role for Lambda
 resource "aws_iam_role" "lambda_role" {
-  name = "${local.name_prefix}-lambda-role"
+  name = "${local.name_prefix}-lambda-${data.aws_caller_identity.current.account_id}"
   tags = local.common_tags
 
   assume_role_policy = jsonencode({
