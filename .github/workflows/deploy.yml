@@ -59,17 +59,17 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
         - name: Run Deployment Script
-        run: |
-          # Set environment variables for the script
-          export AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }}
-          export DEFAULT_AWS_REGION=${{ secrets.DEFAULT_AWS_REGION }}
-          export TF_VAR_openrouter_api_key=${{ secrets.OPENROUTER_API_KEY }}
-          
-          # Make script executable and run it
-          chmod +x scripts/deploy.sh
-          ./scripts/deploy.sh ${{ github.event.inputs.environment || 'dev' }}
-        env:
-          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+          run: |
+            # Set environment variables for the script
+            export AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }}
+            export DEFAULT_AWS_REGION=${{ secrets.DEFAULT_AWS_REGION }}
+            export TF_VAR_openrouter_api_key=${{ secrets.OPENROUTER_API_KEY }}
+            
+            # Make script executable and run it
+            chmod +x scripts/deploy.sh
+            ./scripts/deploy.sh ${{ github.event.inputs.environment || 'dev' }}
+          env:
+            AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
           
       - name: Get Deployment URLs
         id: deploy_outputs
