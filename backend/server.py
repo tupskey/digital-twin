@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from openai import OpenAI
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 from typing import Optional, List, Dict
 import json
@@ -12,8 +13,13 @@ import boto3
 from botocore.exceptions import ClientError
 from context import prompt
 
-# Load environment variables
-load_dotenv()
+# Load .env from fixed paths — load_dotenv() alone only reads CWD, which breaks when
+# uvicorn is started from the repo root or from another directory.
+_backend_root = Path(__file__).resolve().parent
+_repo_root = _backend_root.parent
+for _path, _override in ((_repo_root / ".env", False), (_backend_root / ".env", True)):
+    if _path.is_file():
+        load_dotenv(_path, override=_override)
 
 app = FastAPI()
 
@@ -45,7 +51,12 @@ def get_openrouter_client() -> OpenAI:
     if not key:
         raise HTTPException(
             status_code=503,
-            detail="OPENROUTER_API_KEY is not configured.",
+            detail=(
+                "OPENROUTER_API_KEY is not set. For local runs, add it to backend/.env or the repo "
+                "root .env (or export it). For AWS Lambda, set GitHub Actions secret OPENROUTER_API_KEY "
+                "(and TF_VAR_openrouter_api_key is set from it in deploy) or terraform variable "
+                "openrouter_api_key, then redeploy."
+            ),
         )
     base = _strip_secret(os.getenv("OPENROUTER_BASE_URL")) or "https://openrouter.ai/api/v1"
     # OpenRouter recommends these headers for attribution; some account setups expect them.
