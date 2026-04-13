@@ -24,7 +24,10 @@ jobs:
     name: Destroy ${{ github.event.inputs.environment }}
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment }}
-    
+    concurrency:
+      group: twin-terraform-${{ github.event.inputs.environment }}
+      cancel-in-progress: false
+
     steps:
       - name: Verify confirmation
         run: |

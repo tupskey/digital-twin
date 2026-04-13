@@ -130,11 +130,16 @@ $awsRegion = if (-not [string]::IsNullOrWhiteSpace($env:DEFAULT_AWS_REGION)) {
 # Ensure S3 Backend exists (Fix for LocationConstraint handled inside this script)
 & (Join-Path $PSScriptRoot "ensure-terraform-backend.ps1") -AccountId $awsAccountId -Region $awsRegion
 
-# Splat args so pwsh never treats "--" / continuation lines as operators (fixes GHA / Linux).
+& (Join-Path $PSScriptRoot "migrate-legacy-terraform-s3-key.ps1") `
+    -Bucket "twin-terraform-state-$awsAccountId" `
+    -Workspace $Environment
+
+# S3 backend path = workspace prefix + workspace name + key (default prefix env:/).
+# Do not put $Environment in the key while using workspaces or you get env:/dev/dev/terraform.tfstate.
 $initArgs = @(
     'init', '-input=false',
     "-backend-config=bucket=twin-terraform-state-$awsAccountId",
-    "-backend-config=key=$Environment/terraform.tfstate",
+    '-backend-config=key=terraform.tfstate',
     "-backend-config=region=$awsRegion",
     '-backend-config=use_lockfile=true',
     '-backend-config=encrypt=true'

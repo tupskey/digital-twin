@@ -24,7 +24,10 @@ jobs:
     name: Deploy to ${{ github.event.inputs.environment || 'dev' }}
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment || 'dev' }}
-    
+    concurrency:
+      group: twin-terraform-${{ github.event.inputs.environment || 'dev' }}
+      cancel-in-progress: false
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -86,7 +89,7 @@ jobs:
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           terraform init -input=false \
             -backend-config="bucket=twin-terraform-state-${ACCOUNT_ID}" \
-            -backend-config="key=${TF_ENV}/terraform.tfstate" \
+            -backend-config="key=terraform.tfstate" \
             -backend-config="region=${AWS_REGION}" \
             -backend-config="use_lockfile=true" \
             -backend-config="encrypt=true"
