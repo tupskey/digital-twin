@@ -32,10 +32,10 @@ bedrock_client = boto3.client(
     service_name="bedrock-runtime", 
     region_name=os.getenv("DEFAULT_AWS_REGION", "us-east-1")
 )
-
-print("Checking OPENROUTER_API_KEY: ", os.getenv("OPENROUTER_API_KEY"))
+api_key = os.getenv("OPENROUTER_API_KEY")
+print("Checking OPENROUTER_API_KEY: ", api_key)
 # Initialize OpenAI client
-openai_client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=os.getenv("OPENROUTER_API_KEY"))
+openai_client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
 
 
 # Bedrock model selection - see Q42 on https://edwarddonner.com/faq for more
