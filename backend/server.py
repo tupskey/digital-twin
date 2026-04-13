@@ -31,19 +31,40 @@ app.add_middleware(
 _client: Optional[OpenAI] = None
 
 
+def _strip_secret(value: Optional[str]) -> str:
+    if not value:
+        return ""
+    return value.strip().strip("\ufeff").strip()
+
+
 def get_openrouter_client() -> OpenAI:
     global _client
     if _client is not None:
         return _client
-    key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
+    key = _strip_secret(os.getenv("OPENROUTER_API_KEY"))
     if not key:
         raise HTTPException(
             status_code=503,
             detail="OPENROUTER_API_KEY is not configured.",
         )
-    base = (os.getenv("OPENROUTER_BASE_URL") or "https://openrouter.ai/api/v1").strip()
-    _client = OpenAI(api_key=key, base_url=base)
+    base = _strip_secret(os.getenv("OPENROUTER_BASE_URL")) or "https://openrouter.ai/api/v1"
+    # OpenRouter recommends these headers for attribution; some account setups expect them.
+    referer = _strip_secret(os.getenv("OPENROUTER_HTTP_REFERER")) or "http://localhost:3000"
+    title = _strip_secret(os.getenv("OPENROUTER_APP_TITLE")) or "twin-api"
+    _client = OpenAI(
+        api_key=key,
+        base_url=base,
+        default_headers={
+            "HTTP-Referer": referer,
+            "X-Title": title,
+        },
+    )
     return _client
+
+
+def openrouter_chat_model() -> str:
+    # OpenRouter model IDs always use a provider prefix (e.g. openai/gpt-4o-mini), not bare OpenAI names.
+    return _strip_secret(os.getenv("OPENROUTER_CHAT_MODEL")) or "openai/gpt-4o-mini"
 
 # Memory storage configuration
 USE_S3 = os.getenv("USE_S3", "false").lower() == "true"
@@ -148,8 +169,8 @@ async def chat(request: ChatRequest):
 
         # Call OpenRouter (OpenAI-compatible)
         response = get_openrouter_client().chat.completions.create(
-            model="gpt-4o-mini", 
-            messages=messages
+            model=openrouter_chat_model(),
+            messages=messages,
         )
 
         assistant_response = response.choices[0].message.content
@@ -171,6 +192,8 @@ async def chat(request: ChatRequest):
 
         return ChatResponse(response=assistant_response, session_id=session_id)
 
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Error in chat endpoint: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

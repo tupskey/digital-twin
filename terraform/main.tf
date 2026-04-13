@@ -138,6 +138,9 @@ resource "aws_lambda_function" "api" {
       USE_S3           = "true"
       BEDROCK_MODEL_ID = var.bedrock_model_id
       OPENROUTER_API_KEY = var.openrouter_api_key
+      # OpenRouter optional attribution headers (see openrouter.ai/docs/requests)
+      OPENROUTER_HTTP_REFERER = var.use_custom_domain ? "https://${var.root_domain}" : "https://${aws_cloudfront_distribution.main.domain_name}"
+      OPENROUTER_APP_TITLE    = "${local.name_prefix}-api"
     }
   }
 
