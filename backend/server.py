@@ -33,6 +33,7 @@ bedrock_client = boto3.client(
     region_name=os.getenv("DEFAULT_AWS_REGION", "us-east-1")
 )
 
+print(os.getenv("OPENROUTER_API_KEY"))
 # Initialize OpenAI client
 client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=os.getenv("OPENROUTER_API_KEY"))
 
