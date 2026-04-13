@@ -35,7 +35,7 @@ bedrock_client = boto3.client(
 
 print("Checking OPENROUTER_API_KEY: ", os.getenv("OPENROUTER_API_KEY"))
 # Initialize OpenAI client
-client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=os.getenv("OPENROUTER_API_KEY"))
+openai_client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=os.getenv("OPENROUTER_API_KEY"))
 
 
 # Bedrock model selection - see Q42 on https://edwarddonner.com/faq for more
@@ -180,8 +180,8 @@ def call_openai(conversation: List[Dict], user_message: str) -> str:
         messages.append({"role": "user", "content": user_message})
 
         # Call OpenAI API
-        response = client.chat.completions.create(
-            model="gpt-4o-mini", 
+        response = openai_client.chat.completions.create(
+            model="openai/gpt-4o-mini", 
             messages=messages
         )
 

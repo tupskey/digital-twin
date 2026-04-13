@@ -1,18 +1,74 @@
 param(
-    [string]$Environment = "dev",   # dev | test | prod
-    [string]$ProjectName = "twin"
+    [Parameter(Mandatory=$false)]
+    [string]$Environment = "dev",  #Defaults to 'dev' if no value provided
+    [string]$ProjectName = "digital-twin"
 )
+
 $ErrorActionPreference = "Stop"
 
-# Terraform variable openrouter_api_key: prefer explicit TF_VAR_, else GitHub/local OPENROUTER_API_KEY
-if (-not $env:TF_VAR_openrouter_api_key -and $env:OPENROUTER_API_KEY) {
-    $env:TF_VAR_openrouter_api_key = $env:OPENROUTER_API_KEY
+function Get-TerraformExe {
+    $cmd = Get-Command terraform -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Path }
+    $homeRoot = if (-not [string]::IsNullOrWhiteSpace($env:HOME)) { $env:HOME } else { $env:USERPROFILE }
+    $candidates = @()
+    if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+        $candidates += (Join-Path $env:LOCALAPPDATA "Programs\terraform\terraform.exe")
+    }
+    $candidates += @(
+        "C:\Program Files\Terraform\terraform.exe",
+        (Join-Path $homeRoot ".local/bin/terraform"),
+        "/usr/local/bin/terraform"
+    )
+    foreach ($p in $candidates) {
+        if ($p -and (Test-Path -LiteralPath $p)) { return $p }
+    }
+    return $null
 }
 
 Write-Host "Deploying $ProjectName to $Environment ..." -ForegroundColor Green
 
 # 1. Build Lambda package
-Set-Location (Split-Path $PSScriptRoot -Parent)   # project root
+$ProjectRoot = Split-Path $PSScriptRoot -Parent
+Set-Location $ProjectRoot
+
+# Load .env variables into the Process environment
+$dotenvPath = Join-Path $ProjectRoot ".env"
+if (Test-Path $dotenvPath) {
+    Get-Content $dotenvPath | ForEach-Object {
+        $line = $_.Trim()
+        if ($line -eq "" -or $line.StartsWith("#")) { return }
+        $eq = $line.IndexOf("=")
+        if ($eq -lt 1) { return }
+        $name = $line.Substring(0, $eq).Trim()
+        $val = $line.Substring($eq + 1).Trim()
+        if ($val.Length -ge 2 -and (($val.StartsWith('"') -and $val.EndsWith('"')) -or ($val.StartsWith("'") -and $val.EndsWith("'")))) {
+            $val = $val.Substring(1, $val.Length - 2)
+        }
+        if ($name) { [Environment]::SetEnvironmentVariable($name, $val, "Process") }
+    }
+}
+
+# --- Fix: Robust OpenRouter Key Bridging ---
+# Ensure TF_VAR_openrouter_api_key is set only if a non-empty key exists
+if (-not [string]::IsNullOrWhiteSpace($env:OPENROUTER_API_KEY)) {
+    $env:TF_VAR_openrouter_api_key = $env:OPENROUTER_API_KEY.Trim()
+}
+
+if (-not [string]::IsNullOrWhiteSpace($env:TF_VAR_openrouter_api_key)) {
+    $maskedKey = $env:TF_VAR_openrouter_api_key.Substring(0, 10) + "..."
+    Write-Host "Using OpenRouter Key: $maskedKey" -ForegroundColor Gray
+} else {
+    Write-Warning "No OpenRouter API Key found in environment variables."
+}
+
+if ($env:GITHUB_ACTIONS -eq "true") {
+    if (-not [string]::IsNullOrWhiteSpace($env:TF_VAR_openrouter_api_key)) {
+        Write-Host "GitHub Actions: API Key verified." -ForegroundColor Cyan
+    } else {
+        Write-Warning "GitHub Actions: API Key is MISSING."
+    }
+}
+
 Write-Host "Building Lambda package..." -ForegroundColor Yellow
 Set-Location backend
 uv run deploy.py
@@ -20,56 +76,96 @@ Set-Location ..
 
 # 2. Terraform workspace & apply
 Set-Location terraform
-$awsAccountId = aws sts get-caller-identity --query Account --output text
-$awsRegion = if ($env:DEFAULT_AWS_REGION) { $env:DEFAULT_AWS_REGION } else { "us-east-1" }
-terraform init -input=false `
-  -backend-config="bucket=twin-terraform-state-$awsAccountId" `
-  -backend-config="key=$Environment/terraform.tfstate" `
-  -backend-config="region=$awsRegion" `
-  -backend-config="dynamodb_table=twin-terraform-locks" `
-  -backend-config="encrypt=true"
-
-if (-not (terraform workspace list | Select-String $Environment)) {
-    terraform workspace new $Environment
+# Inside (...), PowerShell parses '--query' as the '--' operator; quote AWS flags.
+$awsAccountId = (aws sts get-caller-identity '--query' 'Account' '--output' 'text').Trim()
+$tf = Get-TerraformExe
+if (-not $tf) {
+    Write-Error "Terraform is not on PATH and was not found in common install locations. Install Terraform and retry."
+    exit 1
+}
+$awsRegion = if (-not [string]::IsNullOrWhiteSpace($env:DEFAULT_AWS_REGION)) {
+    $env:DEFAULT_AWS_REGION.Trim()
 } else {
-    terraform workspace select $Environment
+    "eu-west-2"
+}
+
+# Ensure S3 Backend exists (Fix for LocationConstraint handled inside this script)
+& (Join-Path $PSScriptRoot "ensure-terraform-backend.ps1") -AccountId $awsAccountId -Region $awsRegion
+
+# Splat args so pwsh never treats "--" / continuation lines as operators (fixes GHA / Linux).
+$initArgs = @(
+    'init', '-input=false',
+    "-backend-config=bucket=twin-terraform-state-$awsAccountId",
+    "-backend-config=key=$Environment/terraform.tfstate",
+    "-backend-config=region=$awsRegion",
+    '-backend-config=use_lockfile=true',
+    '-backend-config=encrypt=true'
+)
+& $tf @initArgs
+
+# --- Fix: Workspace Selection Logic ---
+$currentWorkspaces = & $tf @('workspace', 'list')
+# Use regex boundary \b to ensure we don't match 'dev' inside 'dev-test'
+if ($currentWorkspaces -match "\b$Environment\b") {
+    Write-Host "Selecting workspace: $Environment" -ForegroundColor Gray
+    & $tf @('workspace', 'select', $Environment)
+} else {
+    Write-Host "Creating new workspace: $Environment" -ForegroundColor Yellow
+    & $tf @('workspace', 'new', $Environment)
 }
 
 if ($Environment -eq "prod") {
-    terraform apply -var-file="prod.tfvars" -var="project_name=$ProjectName" -var="environment=$Environment" -auto-approve
+    & $tf @(
+        'apply', '-var-file=prod.tfvars',
+        "-var=project_name=$ProjectName", "-var=environment=$Environment", '-auto-approve'
+    )
 } else {
-    terraform apply -var="project_name=$ProjectName" -var="environment=$Environment" -auto-approve
+    & $tf @('apply', "-var=project_name=$ProjectName", "-var=environment=$Environment", '-auto-approve')
 }
 
-$ApiUrl        = terraform output -raw api_gateway_url
-$FrontendBucket = terraform output -raw s3_frontend_bucket
-try { $CustomUrl = terraform output -raw custom_domain_url } catch { $CustomUrl = "" }
+# ... after terraform apply ...
 
-# 3. Build + deploy frontend
-# 3. Build + deploy frontend
-Set-Location ..\frontend
-npm install
-npm run build
+Write-Host "Fetching outputs..." -ForegroundColor Yellow
 
-Write-Host "Checking export output..." -ForegroundColor Yellow
+# Use -json and parse it to be more robust, or stay with -raw but add a check
+$FrontendBucket = & $tf @('output', '-raw', 's3_frontend_bucket')
+$ApiUrl         = & $tf @('output', '-raw', 'api_gateway_url')
 
-if (-Not (Test-Path "out/index.html")) {
-    Write-Host "❌ ERROR: out/index.html not found" -ForegroundColor Red
-    Get-ChildItem -Recurse
+# VALIDATION: Stop early if outputs are missing
+if ([string]::IsNullOrWhiteSpace($FrontendBucket)) {
+    Write-Error "CRITICAL: Frontend bucket name is empty! Check if 's3_frontend_bucket' is defined in outputs.tf"
     exit 1
 }
 
-Write-Host "Uploading to S3..." -ForegroundColor Green
+Write-Host "Deploying to bucket: $FrontendBucket" -ForegroundColor Gray
+try { $CustomUrl = & $tf @('output', '-raw', 'custom_domain_url') } catch { $CustomUrl = "" }
 
-aws s3 sync ./out "s3://$FrontendBucket/" --delete
+# 3. Build + deploy frontend
+Set-Location ..\frontend
 
+Write-Host "Setting API URL for production..." -ForegroundColor Yellow
+"NEXT_PUBLIC_API_URL=$ApiUrl" | Out-File .env.production -Encoding utf8
+
+npm install
+if ($LASTEXITCODE -ne 0) { throw "npm install failed." }
+npm run build
+if ($LASTEXITCODE -ne 0) { throw "npm run build failed." }
+
+$frontendOut = Join-Path (Get-Location) "out"
+if (-not (Test-Path -Path $frontendOut -PathType Container)) {
+    throw "Static export folder not found: $frontendOut."
+}
+
+& $tf @('output')
+aws s3 sync "$frontendOut" "s3://$FrontendBucket/" '--delete'
+if ($LASTEXITCODE -ne 0) { throw "aws s3 sync failed." }
 Set-Location ..
 
 # 4. Final summary
-$CfUrl = terraform -chdir=terraform output -raw cloudfront_url
+$CfUrl = & $tf @('-chdir=terraform', 'output', '-raw', 'cloudfront_url')
 Write-Host "Deployment complete!" -ForegroundColor Green
 Write-Host "CloudFront URL : $CfUrl" -ForegroundColor Cyan
-if ($CustomUrl) {
+if ($CustomUrl -and $CustomUrl -notmatch "Output not found") {
     Write-Host "Custom domain  : $CustomUrl" -ForegroundColor Cyan
 }
 Write-Host "API Gateway    : $ApiUrl" -ForegroundColor Cyan

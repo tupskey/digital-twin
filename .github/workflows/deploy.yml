@@ -58,28 +58,44 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
+      - name: Verify OPENROUTER_API_KEY (repository secret)
+        run: |
+          if [ -z "${OPENROUTER_API_KEY}" ]; then
+            echo "::error::OPENROUTER_API_KEY is missing or empty. Add it under Settings → Secrets and variables → Actions (repository secret OPENROUTER_API_KEY)."
+            exit 1
+          fi
+          echo "OPENROUTER_API_KEY is loaded from GitHub Actions secrets into this step (value is not printed)."
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+
       - name: Run Deployment Script
         run: |
-          # Set environment variables for the script
-          export AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }}
-          export DEFAULT_AWS_REGION=${{ secrets.DEFAULT_AWS_REGION }}
-          export TF_VAR_openrouter_api_key=${{ secrets.OPENROUTER_API_KEY }}
-          
-          # Make script executable and run it
-          chmod +x scripts/deploy.ps1
-          pwsh ./scripts/deploy.ps1 -Environment ${{ github.event.inputs.environment || 'dev' }}
-          # ./scripts/deploy.ps1 -Environment ${{ github.event.inputs.environment || 'dev' }}
+          pwsh -File ./scripts/deploy.ps1 -Environment "${{ github.event.inputs.environment || 'dev' }}"
         env:
           AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          DEFAULT_AWS_REGION: ${{ secrets.DEFAULT_AWS_REGION }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           
       - name: Get Deployment URLs
         id: deploy_outputs
         working-directory: ./terraform
+        env:
+          TF_ENV: ${{ github.event.inputs.environment || 'dev' }}
+          AWS_REGION: ${{ secrets.DEFAULT_AWS_REGION }}
         run: |
-          terraform workspace select ${{ github.event.inputs.environment || 'dev' }}
-          echo "cloudfront_url=$(terraform output -raw cloudfront_url)" >> $GITHUB_OUTPUT
-          echo "api_url=$(terraform output -raw api_gateway_url)" >> $GITHUB_OUTPUT
-          echo "frontend_bucket=$(terraform output -raw s3_frontend_bucket)" >> $GITHUB_OUTPUT
+          set -e
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          terraform init -input=false \
+            -backend-config="bucket=twin-terraform-state-${ACCOUNT_ID}" \
+            -backend-config="key=${TF_ENV}/terraform.tfstate" \
+            -backend-config="region=${AWS_REGION}" \
+            -backend-config="use_lockfile=true" \
+            -backend-config="encrypt=true"
+          terraform workspace select "${TF_ENV}"
+          echo "cloudfront_url=$(terraform output -raw cloudfront_url)" >> "$GITHUB_OUTPUT"
+          echo "api_url=$(terraform output -raw api_gateway_url)" >> "$GITHUB_OUTPUT"
+          echo "frontend_bucket=$(terraform output -raw s3_frontend_bucket)" >> "$GITHUB_OUTPUT"
 
       - name: Invalidate CloudFront
         run: |
@@ -99,4 +115,3 @@ jobs:
           echo "🌐 CloudFront URL: ${{ steps.deploy_outputs.outputs.cloudfront_url }}"
           echo "📡 API Gateway: ${{ steps.deploy_outputs.outputs.api_url }}"
           echo "🪣 Frontend Bucket: ${{ steps.deploy_outputs.outputs.frontend_bucket }}"
-          
