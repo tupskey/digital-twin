@@ -67,7 +67,8 @@ jobs:
           
           # Make script executable and run it
           chmod +x scripts/deploy.sh
-          ./scripts/deploy.sh ${{ github.event.inputs.environment || 'dev' }}
+          pwsh ./scripts/deploy.ps1 -Environment ${{ github.event.inputs.environment || 'dev' }}
+          # ./scripts/deploy.sh ${{ github.event.inputs.environment || 'dev' }}
         env:
           AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
           
